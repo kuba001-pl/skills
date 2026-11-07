@@ -1,0 +1,4 @@
+interface:
+  display_name: "UI Direction"
+  short_description: "Pick a distinctive visual direction and record it in DESIGN.md"
+  default_prompt: "Use $ui-direction to choose a visual direction for this product that is not a generic default, and write it to DESIGN.md."

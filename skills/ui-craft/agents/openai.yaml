@@ -1,0 +1,4 @@
+interface:
+  display_name: "UI Craft"
+  short_description: "The quality floor for any UI you write"
+  default_prompt: "Use $ui-craft while building this UI so it meets the quality floor."

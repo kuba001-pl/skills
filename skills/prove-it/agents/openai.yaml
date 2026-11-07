@@ -1,0 +1,4 @@
+interface:
+  display_name: "Prove It"
+  short_description: "Run the real app and capture evidence that it works"
+  default_prompt: "Use $prove-it to prove this works: run it, screenshot it, measure it."

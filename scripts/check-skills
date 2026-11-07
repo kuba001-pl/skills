@@ -1,0 +1,251 @@
+#!/usr/bin/env python3
+"""check-skills: validate every skill in this repo.
+
+  scripts/check-skills [repo-root]
+
+Checks, for each skills/<name>/SKILL.md:
+  - frontmatter parses as the YAML subset skills use (plain, quoted, and
+    block scalars), with `name` and `description`
+  - `name` equals the folder name, is lowercase letters, digits, and hyphens,
+    is at most 64 characters, and does not contain "anthropic" or "claude"
+  - `description` is at most 1024 characters, contains no XML tags, and says
+    when to load the skill ("Use when", "Use before", or "Trigger")
+  - no emoji in SKILL.md, agents/openai.yaml, or README.md
+  - no reasoning effort above `high` is requested (`xhigh`/`max` only after "Never")
+  - relative Markdown links (fragments ignored) and every `scripts/...` path,
+    in prose or code, point at real files
+  - names of the upstream skills this repo adapts appear only in credit paragraphs
+  - agents/openai.yaml, if present, has display_name, short_description, and a
+    default_prompt under `interface:` that mentions $<name>
+And for the repo:
+  - README's skill table lists exactly the skills in skills/
+  - every quoted phrase in README's "Say" column appears in that skill's
+    description, so documented triggers stay real
+
+Exits 0 when everything passes, 1 on any problem. Standard library only.
+"""
+
+from __future__ import annotations
+
+import re
+import sys
+from pathlib import Path
+
+NAME_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
+UPSTREAM = {
+    "full-send", "full-stop", "sol-loop", "takeover", "modernize", "leaving-pr-comments", "baseline-ui",
+    "fixing-accessibility", "fixing-motion-performance", "fixing-metadata",
+    "improve-ui", "create-design-md", "ui-skills-root", "frontend-design",
+    "impeccable", "improve-animations", "better-ui", "interface-design",
+}
+EMOJI_RE = re.compile("[\U0001F000-\U0001FFFF\u2600-\u27BF\u2B00-\u2BFF\uFE0F]")
+TRIGGER_RE = re.compile(r"\b(use (only )?(when|before)|trigger)\b", re.I)
+CREDIT_RE = re.compile(r"(Based on|Adapted from|Compared with|tstack|ui-skills)", re.I)
+
+problems: list[str] = []
+
+
+def problem(path: Path, msg: str) -> None:
+    problems.append(f"{path}: {msg}")
+
+
+YAML_ESCAPES = {
+    "0": "\0", "a": "\a", "b": "\b", "t": "\t", "\t": "\t", "n": "\n", "v": "\v",
+    "f": "\f", "r": "\r", "e": "\x1b", " ": " ", '"': '"', "/": "/", "\\": "\\",
+    "N": "\x85", "_": "\xa0", "L": "\u2028", "P": "\u2029",
+}
+
+
+def unescape(path: Path, key: str, body: str) -> str:
+    def sub(m: re.Match) -> str:
+        esc = m.group(1)
+        if esc in YAML_ESCAPES:
+            return YAML_ESCAPES[esc]
+        hexlen = {"x": 2, "u": 4, "U": 8}.get(esc[0])
+        if hexlen and re.fullmatch(rf"[0-9A-Fa-f]{{{hexlen}}}", esc[1:]):
+            return chr(int(esc[1:], 16))
+        problem(path, f"{key}: invalid escape \\{esc} in double-quoted string")
+        return ""
+    return re.sub(r"\\(x[0-9A-Fa-f]{0,2}|u[0-9A-Fa-f]{0,4}|U[0-9A-Fa-f]{0,8}|.)", sub, body)
+
+
+def scalar(path: Path, key: str, raw: str) -> str:
+    """Parse a one-line YAML scalar strictly; report what a YAML loader would reject."""
+    if raw.startswith('"'):
+        m = re.fullmatch(r'"((?:[^"\\]|\\.)*)"', raw)
+        if not m:
+            problem(path, f"{key}: unterminated or malformed double-quoted string")
+            return ""
+        return unescape(path, key, m.group(1))
+    if raw.startswith("'"):
+        m = re.fullmatch(r"'((?:[^']|'')*)'", raw)
+        if not m:
+            problem(path, f"{key}: unterminated or malformed single-quoted string")
+            return ""
+        return m.group(1).replace("''", "'")
+    if raw[:1] in "[]{},&*!%@`|>#" or raw[:2] in ("- ", "? ", ": "):
+        problem(path, f"{key}: plain value cannot start with {raw[:1]!r}; quote it")
+        return ""
+    if ": " in raw or raw.endswith(":") or " #" in raw:
+        problem(path, f"{key}: plain value contains ': ' or ' #', which YAML rejects; quote it")
+        return ""
+    return raw
+
+
+def frontmatter(path: Path, text: str) -> dict[str, str]:
+    if not text.startswith("---\n"):
+        problem(path, "missing frontmatter")
+        return {}
+    end = text.find("\n---\n", 4)
+    if end < 0:
+        problem(path, "unterminated frontmatter")
+        return {}
+    fields: dict[str, str] = {}
+    lines = text[4:end].splitlines()
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        i += 1
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        m = re.match(r"^([A-Za-z_][\w-]*):(?:\s+(.*))?$", line)
+        if not m:
+            problem(path, f"frontmatter line not understood: {line[:60]!r}")
+            continue
+        key, raw = m.group(1), (m.group(2) or "").strip()
+        if raw in (">", ">-", "|", "|-", ""):
+            block = []
+            while i < len(lines) and (lines[i].startswith((" ", "\t")) or not lines[i].strip()):
+                block.append(lines[i].strip())
+                i += 1
+            fields[key] = " ".join(b for b in block if b) if raw.startswith(">") or not raw else "\n".join(block)
+            continue
+        fields[key] = scalar(path, key, raw)
+    return fields
+
+
+def check_emoji(path: Path) -> None:
+    for n, line in enumerate(path.read_text().splitlines(), 1):
+        if EMOJI_RE.search(line):
+            problem(path, f"line {n}: emoji {EMOJI_RE.search(line).group()!r}")
+
+
+EFFORT_RE = re.compile(r"`?(xhigh|max(imum)?)`?\s+(reasoning|effort|thinking)|(effort|thinking)[^.\n]{0,20}\b(xhigh|max)\b", re.I)
+
+
+def check_effort(path: Path) -> None:
+    for n, line in enumerate(path.read_text().splitlines(), 1):
+        m = EFFORT_RE.search(line)
+        if m and not re.search(r"\bnever\b", line[: m.end()], re.I):
+            problem(path, f"line {n}: asks for effort above high: {m.group()!r}")
+
+
+def check_skill(root: Path, skill_dir: Path) -> str:
+    name = skill_dir.name
+    skill_md = skill_dir / "SKILL.md"
+    if not skill_md.is_file():
+        problem(skill_dir, "no SKILL.md")
+        return ""
+    text = skill_md.read_text()
+    fm = frontmatter(skill_md, text)
+    fm_name = fm.get("name", "")
+    desc = fm.get("description", "")
+
+    if fm_name != name:
+        problem(skill_md, f"name {fm_name!r} does not match folder {name!r}")
+    if not NAME_RE.match(name) or len(name) > 64:
+        problem(skill_md, f"name {name!r} must be lowercase-hyphenated, <= 64 chars")
+    if "anthropic" in name or "claude" in name:
+        problem(skill_md, f"name {name!r} uses a reserved word")
+    if not desc:
+        problem(skill_md, "empty description")
+    if len(desc) > 1024:
+        problem(skill_md, f"description is {len(desc)} chars (max 1024)")
+    if re.search(r"<[A-Za-z/][^>]*>", desc):
+        problem(skill_md, "description contains an XML tag")
+    if desc and not TRIGGER_RE.search(desc):
+        problem(skill_md, 'description does not say when to use it ("Use when ...")')
+    check_emoji(skill_md)
+    check_effort(skill_md)
+
+    for dest in re.findall(r"\]\(\s*<?([^)\s>]+)", text):
+        target = dest.split("#", 1)[0]
+        if not target or "://" in target or target.startswith("mailto:"):
+            continue
+        if not (skill_dir / target).exists():
+            problem(skill_md, f"broken link {dest}")
+    found_scripts = re.findall(r"(?<![\w./-])(scripts/[\w.-]+(?:/[\w.-]+)*)", text)
+    for script in sorted({s.rstrip(".") for s in found_scripts}):
+        if not (skill_dir / script).exists():
+            problem(skill_md, f"missing {script}")
+
+    for paragraph in re.split(r"\n\s*\n", text):
+        if CREDIT_RE.search(paragraph):
+            continue
+        found = set(re.findall(r"`\$?([a-z0-9-]+)`", paragraph)) & UPSTREAM
+        # Hyphenated upstream names are distinctive enough to catch in prose too.
+        found |= {n for n in UPSTREAM if "-" in n and re.search(rf"(?<![\w-])\$?{re.escape(n)}(?![\w-])", paragraph)}
+        for token in sorted(found):
+            first = paragraph.strip().splitlines()[0][:60]
+            problem(skill_md, f"upstream skill `{token}` outside a credit paragraph: {first!r}")
+
+    yaml_path = skill_dir / "agents" / "openai.yaml"
+    if yaml_path.exists():
+        check_emoji(yaml_path)
+        interface: dict[str, str] = {}
+        section = None
+        for line in yaml_path.read_text().splitlines():
+            if not line.strip() or line.lstrip().startswith("#"):
+                continue
+            top = re.match(r"^([A-Za-z_][\w-]*):", line)
+            if top:
+                section = top.group(1)  # any top-level key ends the previous section
+                continue
+            m = re.match(r"^  ([A-Za-z_][\w-]*):(?:\s+(.*))?$", line)
+            if section == "interface" and m:
+                interface[m.group(1)] = scalar(yaml_path, m.group(1), (m.group(2) or "").strip())
+        for field in ("display_name", "short_description", "default_prompt"):
+            if not interface.get(field, "").strip():
+                problem(yaml_path, f"interface.{field} is missing or empty")
+        if interface.get("default_prompt") and f"${name}" not in interface["default_prompt"]:
+            problem(yaml_path, f"interface.default_prompt does not mention ${name}")
+    return desc
+
+
+def check_readme(root: Path, descriptions: dict[str, str]) -> None:
+    readme = root / "README.md"
+    if not readme.is_file():
+        problem(root, "no README.md")
+        return
+    check_emoji(readme)
+    rows = re.findall(r"^\|\s*`([a-z0-9-]+)`\s*\|([^|]*)\|", readme.read_text(), re.M)
+    listed = {name for name, _ in rows}
+    for missing in sorted(set(descriptions) - listed):
+        problem(readme, f"skill table is missing `{missing}`")
+    for extra in sorted(listed - set(descriptions)):
+        problem(readme, f"skill table lists `{extra}`, which does not exist")
+    for name, say in rows:
+        desc = descriptions.get(name, "").lower()
+        for phrase in re.findall(r'"([^"]+)"', say):
+            if desc and phrase.lower() not in desc:
+                problem(readme, f"`{name}`: trigger {phrase!r} is not in its description")
+
+
+def main() -> int:
+    root = Path(sys.argv[1] if len(sys.argv) > 1 else Path(__file__).resolve().parent.parent)
+    skills = root / "skills"
+    if not skills.is_dir():
+        print(f"{root}: no skills/ folder", file=sys.stderr)
+        return 1
+    descriptions = {
+        d.name: check_skill(root, d) for d in sorted(skills.iterdir()) if d.is_dir()
+    }
+    check_readme(root, descriptions)
+    for p in problems:
+        print(p)
+    print(f"{len(descriptions)} skills checked, {len(problems)} problems")
+    return 1 if problems else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

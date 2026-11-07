@@ -1,0 +1,4 @@
+interface:
+  display_name: "UI Motion"
+  short_description: "Decide what should move, with exact durations and curves"
+  default_prompt: "Use $ui-motion to review the animations here and fix or remove the ones that hurt."

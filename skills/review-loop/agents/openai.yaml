@@ -1,0 +1,4 @@
+interface:
+  display_name: "Review Loop"
+  short_description: "Cross-provider review, usually 3 rounds"
+  default_prompt: "Use $review-loop to get this change reviewed by another model until you both agree."

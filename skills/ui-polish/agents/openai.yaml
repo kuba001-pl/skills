@@ -1,0 +1,4 @@
+interface:
+  display_name: "UI Polish"
+  short_description: "Measure, screenshot, and fix what looks off or generated"
+  default_prompt: "Use $ui-polish to review this interface and fix anything that looks generated or unpolished."

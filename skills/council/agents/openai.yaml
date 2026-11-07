@@ -1,0 +1,4 @@
+interface:
+  display_name: "Council"
+  short_description: "Claude and GPT reviewers score every quality dimension"
+  default_prompt: "Use $council to score this on every quality dimension and report the findings. Change nothing."

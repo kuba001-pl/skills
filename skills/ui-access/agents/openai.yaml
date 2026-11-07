@@ -1,0 +1,4 @@
+interface:
+  display_name: "UI Access"
+  short_description: "Audit and fix keyboard, screen reader, and contrast issues"
+  default_prompt: "Use $ui-access to audit this interface and fix what blocks keyboard and screen reader users."

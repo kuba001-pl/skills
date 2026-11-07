@@ -1,0 +1,4 @@
+interface:
+  display_name: "File PR"
+  short_description: "File a clean PR and watch it to ready; never merge without a yes"
+  default_prompt: "Use $file-pr to file this PR and watch it until it is ready for me."

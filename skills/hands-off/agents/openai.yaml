@@ -1,0 +1,4 @@
+interface:
+  display_name: "Hands Off"
+  short_description: "Take any job end to end unattended, then ask to merge"
+  default_prompt: "Use $hands-off to take this job all the way. I am not watching; ask me only if you must."

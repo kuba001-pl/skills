@@ -1,0 +1,4 @@
+interface:
+  display_name: "Write Spec"
+  short_description: "Turn a request into acceptance criteria, a stack, and questions"
+  default_prompt: "Use $write-spec to pin down exactly what I am asking for before anything is built."
