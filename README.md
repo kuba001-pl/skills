@@ -83,9 +83,12 @@ else it decides and lists in the report so you can override it.
   review fixes may grow a change by at most half (or 50 lines).
 - **Real findings only.** Refactors, extra tests, rare edge cases, and
   feature ideas become follow-ups, not code.
-- **Two model families.** Claude and GPT review each other. Never Gemini or
-  other Google models. GPT Sol always runs at `high`; Claude runs at
-  `medium` or `high` depending on the task. Nothing runs above `high`.
+- **Cross-model review.** Claude and GPT review each other, and `council`
+  also includes Gemini 4 Neon (the only Gemini or Google model allowed,
+  skipped if unavailable, with findings double-verified). The newest
+  available GPT Sol model and Gemini 4 Neon always run at `high`, never
+  lower; Claude runs at `medium` or `high` depending on the task. Nothing
+  runs above `high`.
 - **Work folder.** Briefs, plans, and screenshots go in `.agent-work/`, which
   is added to `.git/info/exclude` and never committed.
 
@@ -107,8 +110,8 @@ skills keeps them:
 
 ```markdown
 ## Skills config
-- council members: Claude Opus, GPT Sol, GPT Sol
-- review-loop reviewer: GPT Sol
+- council members: Claude Opus, newest available GPT Sol model, Gemini 4 Neon
+- review-loop reviewer: newest available GPT Sol model
 - council budget: 3 rounds
 ```
 
