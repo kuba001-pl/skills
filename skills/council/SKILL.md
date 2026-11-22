@@ -1,6 +1,6 @@
 ---
 name: council
-description: Use only when the user says "council" or asks for a 9/10 review panel, and as the final quality gate inside hands-off. Independent Claude and GPT reviewers score function, UX, UI, performance, reliability, accessibility, security, and code. On its own it scores once and changes nothing; asked to fix, it fixes and re-scores for up to 3 rounds.
+description: Use only when the user says "council" or asks for a 9/10 review panel, and as the final quality gate inside hands-off. Independent Claude, GPT, and Gemini 4 Neon reviewers score function, UX, UI, performance, reliability, accessibility, security, and code. On its own it scores once and changes nothing; asked to fix, it fixes and re-scores for up to 3 rounds.
 ---
 
 # Council
@@ -29,23 +29,31 @@ it to 9/10"): the loop below.
 ## Members
 
 - Use the members the user's `CLAUDE.md` or `AGENTS.md` names. Otherwise:
-  Claude Opus, GPT Sol, and a second fresh instance of the family that did
-  not write the code (if neither did, the family other than your own). For a
+  Claude Opus, newest available GPT Sol model, and Gemini 4 Neon. For a
   small change (one milestone, no new screen, under about 300 changed
   lines), or when the caller asks for two seats, use only the first two;
   both must then score every dimension. The user's config may also set the
   round budget.
-- Never Gemini or any other Google model, even when it is offered.
-- Reasoning effort: GPT Sol seats always `high`. Claude seats `high` for
-  round 1, `medium` allowed for later rounds that only check fixes. Never
-  `xhigh`, `max`, or anything above `high`.
+- Gemini 4 Neon is the only Gemini or Google model allowed. Never use any
+  other Gemini or Google model, even when offered. If Gemini 4 Neon is
+  unavailable, skip it and fall back to a second fresh seat from the
+  non-authoring Claude or GPT family (if neither wrote the code, the one
+  other than your own). Because Gemini 4 Neon tends to hallucinate,
+  double-verify every finding, file/line reference, quote, and claimed
+  behavior it reports against the actual code, screenshots, measurements,
+  or running app before reporting or fixing it.
+- Reasoning effort: newest available GPT Sol model and Gemini 4 Neon seats
+  always `high`, never lower. Claude seats `high` for round 1, `medium`
+  allowed for later rounds that only check fixes. Never `xhigh`, `max`, or
+  anything above `high`.
 - T3 Code: resolve models with `orchestrator_capabilities`, then one
   `delegate_task` per member in parallel (`role: "review"`). Set the effort
-  option it lists (`reasoningEffort` for Codex, `effort` for Claude) to that
-  level in `target.options`; defaults can be `low`. New delegates every
-  round. Follow the `next` instruction each result returns (completion wakes
-  you); do not poll `task_status`.
-- Elsewhere: the other family's seats through its CLI, read-only, in the
+  option it lists (`reasoningEffort` for Codex, `effort` for Claude, or the
+  listed effort option for Gemini 4 Neon) to that level in
+  `target.options`; defaults can be `low`. New delegates every round.
+  Follow the `next` instruction each result returns (completion wakes you);
+  do not poll `task_status`.
+- Elsewhere: other families' seats through their CLIs, read-only, in the
   background, with the model and effort set, for example
   `codex exec -m <model> -c model_reasoning_effort=high --sandbox read-only
   "<brief>" </dev/null` (an open stdin hangs it), or `claude -p --model
@@ -109,19 +117,25 @@ Passes when, in one round on the current code, every score given for every
 in-scope dimension is 9 or higher, and each dimension has at least two such
 scores. `no score` is an abstention, not a pass: if too few members could
 check a dimension, find one who can or ask. A score below 9 with no in-scope,
-actionable finding is invalid after one request to justify it; record it as
-`no actionable finding`.
+actionable finding, or resting only on hallucinated claims disproved by
+double-verification, is invalid after one request to justify it; record it
+as `no actionable finding` or `unverified` with the disproving evidence.
 
 ## Between rounds
 
-Check every finding yourself. Fix it only if it is a bug in intended use,
-a security or data-loss risk, an accessibility failure, a broken criterion, a
-visible UI or UX defect on an in-scope screen, or another concrete defect
-holding a score below 9. One fix per root problem. Disagree with evidence
-(`file:line`, a screenshot, a measurement); a finding still held after two
-rounds of evidence is stuck, so ask (see "Budget"). Refactors, extra tests,
-abstractions, rare-path hardening, and features are follow-ups. When the
-council reviews a change, problems in code it did not touch are follow-ups.
+Check every finding yourself. Double-verify every finding from Gemini 4
+Neon because it tends to hallucinate: confirm the exact file, line, symbol,
+behavior, screenshot, or measurement yourself, cross-check against the other
+reviewers when in doubt, and discard hallucinated findings with evidence
+instead of acting on them. Fix a verified finding only if it is a bug in
+intended use, a security or data-loss risk, an accessibility failure, a
+broken criterion, a visible UI or UX defect on an in-scope screen, or
+another concrete defect holding a score below 9. One fix per root problem.
+Disagree with evidence (`file:line`, a screenshot, a measurement); a finding
+still held after two rounds of evidence is stuck, so ask (see "Budget").
+Refactors, extra tests, abstractions, rare-path hardening, and features are
+follow-ups. When the council reviews a change, problems in code it did not
+touch are follow-ups.
 
 **Size budget.** At round 1, record the commit and `git diff --shortstat
 <base>`. Council fixes may grow the change by half its size or 50 lines,
@@ -152,10 +166,10 @@ when there is no PR:
 
 Gate: every score ≥ 9/10, two or more per dimension. Result: passed in 2 rounds.
 
-| Dimension | Claude Opus | GPT Sol |
-| --- | --- | --- |
-| Function | 10 | 9 |
-| UI | 9 | 9 |
+| Dimension | Claude Opus | newest available GPT Sol model | Gemini 4 Neon |
+| --- | --- | --- | --- |
+| Function | 10 | 9 | 9 |
+| UI | 9 | 9 | 9 |
 
 Lowest score by round: 7 → 9
 ```

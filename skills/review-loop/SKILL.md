@@ -26,13 +26,15 @@ Reply: VERDICT: AGREE or DISAGREE / Against: / Missing: / Recommendation:
 ## Reviewer
 
 - The model the user's `CLAUDE.md` or `AGENTS.md` names, otherwise the other
-  family's flagship: GPT Sol if you are Claude, Claude Opus if you are GPT.
+  family's flagship: newest available GPT Sol model if you are Claude,
+  Claude Opus if you are GPT.
 - Never Gemini or any other Google model, even when it is the only other
   model offered.
-- Reasoning effort: GPT Sol always runs at `high`, never lower. A Claude
-  reviewer may use `medium` for small, low-risk changes (copy, style, docs,
-  a Small job) and for rounds that only check fixes, and `high` otherwise.
-  Never `xhigh`, `max`, or anything above `high`.
+- Reasoning effort: the newest available GPT Sol model always runs at
+  `high`, never lower. A Claude reviewer may use `medium` for small,
+  low-risk changes (copy, style, docs, a Small job) and for rounds that
+  only check fixes, and `high` otherwise. Never `xhigh`, `max`, or anything
+  above `high`.
 - T3 Code: resolve the model with `orchestrator_capabilities`, then a new
   `delegate_task` every round (`role: "review"`). Set the effort option it
   lists (`reasoningEffort` for Codex, `effort` for Claude) to that level in

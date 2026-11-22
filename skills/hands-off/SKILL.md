@@ -22,10 +22,13 @@ If the user did not clearly say "hands off", do not assume this autonomy.
 - Any test method proof needs, without asking: dev servers, browsers,
   simulators, desktop windows, screenshots, computer use. This overrides
   project rules that say to ask first; rules on *how* to test still apply.
-- Review delegates on Claude and GPT models. Never Gemini or other Google
-  models. GPT Sol always runs at `high`. Claude delegates and subagents run
-  at `medium` for Small jobs and routine steps, `high` for Medium and Large
-  reviews and anything risky. Never above `high`.
+- Review delegates on Claude and GPT models, plus Gemini 4 Neon in
+  `council` (Gemini 4 Neon is the only Gemini or Google model allowed; if
+  unavailable, do not use any Gemini or Google model). Always run the
+  newest available GPT Sol model and Gemini 4 Neon at `high`, never lower.
+  Claude delegates and subagents run at `medium` for Small jobs and routine
+  steps, `high` for Medium and Large reviews and anything risky. Never
+  above `high`.
 - Every decision that is cheap to reverse.
 
 ## Not granted (ask first)
